@@ -135,6 +135,9 @@ export interface Customer {
   email: string;
   phone: string;
   avatar?: string;
+  lastSeenAt?: number;
+  totalTimeSeconds?: number;
+  isOnline?: boolean;
   orders: number;
   spent: number;
   status: 'Active' | 'Inactive';

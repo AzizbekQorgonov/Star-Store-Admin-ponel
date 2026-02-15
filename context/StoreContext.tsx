@@ -1,4 +1,4 @@
-import React, { createContext, useContext, useState, useEffect, ReactNode, useCallback } from 'react';
+import React, { createContext, useContext, useState, useEffect, ReactNode, useCallback, useRef } from 'react';
 import { Notification, User, Product, Order, Customer, Category, Coupon, DefectiveItem, SiteSection } from '../types';
 
 // --- INITIAL DATA RESET TO ZERO/EMPTY ---
@@ -87,7 +87,7 @@ const resolveApiBaseUrl = () => {
 };
 
 const API_BASE_URL = resolveApiBaseUrl();
-const LIVE_REFRESH_MS = 3000;
+const LIVE_REFRESH_MS = 15000;
 
 const apiRequest = async (path: string, options?: RequestInit) => {
   const response = await fetch(`${API_BASE_URL}${path}`, options);
@@ -125,6 +125,7 @@ export const StoreProvider: React.FC<{ children: ReactNode }> = ({ children }) =
   
   // Navigation State
   const [focusedOrderId, setFocusedOrderId] = useState<string | null>(null);
+  const lastLoadWarningRef = useRef<string>('');
 
   // Currency State
   const [currency, setCurrency] = useState(() => {
@@ -338,6 +339,9 @@ export const StoreProvider: React.FC<{ children: ReactNode }> = ({ children }) =
       `https://ui-avatars.com/api/?name=${encodeURIComponent(row.name || 'User')}&background=6366f1&color=ffffff`,
     orders: Number(row.orders ?? 0),
     spent: Number(row.spent ?? 0),
+    lastSeenAt: row.last_seen_at ? Number(row.last_seen_at) : undefined,
+    totalTimeSeconds: Number(row.total_time_seconds ?? 0),
+    isOnline: Boolean(row.is_online),
     status: row.status || 'Active',
     location: row.location || 'Unknown',
     joinDate: row.join_date || 'N/A',
@@ -351,6 +355,9 @@ export const StoreProvider: React.FC<{ children: ReactNode }> = ({ children }) =
     avatar_url: customer.avatar || null,
     orders: customer.orders,
     spent: customer.spent,
+    last_seen_at: customer.lastSeenAt || null,
+    total_time_seconds: Number(customer.totalTimeSeconds ?? 0),
+    is_online: Boolean(customer.isOnline),
     status: customer.status,
     location: customer.location,
     join_date: customer.joinDate,
@@ -432,8 +439,8 @@ export const StoreProvider: React.FC<{ children: ReactNode }> = ({ children }) =
     data: section.data || null,
   });
 
-  const loadInitialData = useCallback(async () => {
-    setIsLoading(true);
+  const loadInitialData = useCallback(async (silent: boolean = false) => {
+    if (!silent) setIsLoading(true);
     const results = await Promise.allSettled([
       apiRequest('/products'),
       apiRequest('/orders'),
@@ -478,16 +485,21 @@ export const StoreProvider: React.FC<{ children: ReactNode }> = ({ children }) =
 
     if (failed.length > 0) {
       const summary = failed.map(([name, err]) => `${name}: ${err}`).join(' | ');
-      addNotification('warning', `Ba'zi ma'lumotlar yuklanmadi: ${summary}`);
+      if (lastLoadWarningRef.current !== summary) {
+        lastLoadWarningRef.current = summary;
+        addNotification('warning', `Ba'zi ma'lumotlar yuklanmadi: ${summary}`);
+      }
+    } else {
+      lastLoadWarningRef.current = '';
     }
 
-    setIsLoading(false);
+    if (!silent) setIsLoading(false);
   }, []);
 
   useEffect(() => {
-    loadInitialData();
+    loadInitialData(false);
     const interval = setInterval(() => {
-      loadInitialData();
+      loadInitialData(true);
     }, LIVE_REFRESH_MS);
     return () => clearInterval(interval);
   }, [loadInitialData]);

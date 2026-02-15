@@ -189,6 +189,25 @@ const CustomersView: React.FC = () => {
     });
   }, [customers, searchTerm, filterStatus]);
 
+  const formatLastSeen = (ts?: number) => {
+    if (!ts) return "Noma'lum";
+    const diff = Date.now() - ts;
+    if (diff < 60_000) return "Hozirgina";
+    if (diff < 3_600_000) return `${Math.floor(diff / 60_000)} daqiqa oldin`;
+    if (diff < 86_400_000) return `${Math.floor(diff / 3_600_000)} soat oldin`;
+    return new Date(ts).toLocaleString();
+  };
+
+  const formatDuration = (seconds?: number) => {
+    const total = Math.max(0, Number(seconds ?? 0));
+    const h = Math.floor(total / 3600);
+    const m = Math.floor((total % 3600) / 60);
+    const s = total % 60;
+    if (h > 0) return `${h} soat ${m} daqiqa`;
+    if (m > 0) return `${m} daqiqa ${s} soniya`;
+    return `${s} soniya`;
+  };
+
   return (
     <div className="space-y-6 relative">
       
@@ -262,6 +281,8 @@ const CustomersView: React.FC = () => {
                 <th className="p-4">Aloqa</th>
                 <th className="p-4">Buyurtmalar</th>
                 <th className="p-4">Jami Savdo</th>
+                <th className="p-4">Oxirgi Faollik</th>
+                <th className="p-4">Saytda Vaqt</th>
                 <th className="p-4">Holat</th>
                 <th className="p-4 text-right">Amallar</th>
               </tr>
@@ -311,6 +332,18 @@ const CustomersView: React.FC = () => {
                   </td>
                   <td className="p-4 font-bold text-slate-800 dark:text-white">${customer.spent.toLocaleString()}</td>
                   <td className="p-4">
+                    <div className="flex flex-col gap-1 text-xs">
+                      <span className={`inline-flex w-fit items-center gap-1 px-2 py-0.5 rounded-full border ${
+                        customer.isOnline ? 'bg-emerald-100 text-emerald-700 border-emerald-200 dark:bg-emerald-900/30 dark:text-emerald-300 dark:border-emerald-800' : 'bg-slate-100 text-slate-600 border-slate-200 dark:bg-slate-800 dark:text-slate-300 dark:border-slate-700'
+                      }`}>
+                        <span className={`w-1.5 h-1.5 rounded-full ${customer.isOnline ? 'bg-emerald-500' : 'bg-slate-400'}`}></span>
+                        {customer.isOnline ? 'Online' : 'Offline'}
+                      </span>
+                      <span className="text-slate-500 dark:text-slate-400">{formatLastSeen(customer.lastSeenAt)}</span>
+                    </div>
+                  </td>
+                  <td className="p-4 text-sm font-medium text-slate-700 dark:text-slate-200">{formatDuration(customer.totalTimeSeconds)}</td>
+                  <td className="p-4">
                     <span className={`inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-xs font-medium border ${
                       customer.status === 'Active' 
                         ? 'bg-green-100 text-green-700 border-green-200 dark:bg-green-900/30 dark:text-green-400 dark:border-green-800' 
@@ -348,7 +381,7 @@ const CustomersView: React.FC = () => {
                 </tr>
               ))) : (
                 <tr>
-                   <td colSpan={6} className="p-8 text-center text-slate-500 dark:text-slate-400">
+                   <td colSpan={8} className="p-8 text-center text-slate-500 dark:text-slate-400">
                       Ma'lumot topilmadi. Qidiruvni o'zgartirib ko'ring.
                    </td>
                 </tr>
