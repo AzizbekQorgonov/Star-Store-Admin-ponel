@@ -1,0 +1,101 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+body {
+  font-family: 'Inter', sans-serif;
+  background-color: #FDFBF7;
+}
+
+html.dark body {
+  background-color: #020617;
+}
+
+::-webkit-scrollbar {
+  width: 6px;
+  height: 6px;
+}
+
+::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+::-webkit-scrollbar-thumb {
+  background: #cbd5e1;
+  border-radius: 3px;
+}
+
+html.dark ::-webkit-scrollbar-thumb {
+  background: #334155;
+}
+
+::-webkit-scrollbar-thumb:hover {
+  background: #94a3b8;
+}
+
+button,
+a,
+[role='button'],
+input,
+select,
+textarea {
+  transition:
+    background-color 220ms ease,
+    border-color 220ms ease,
+    color 220ms ease,
+    box-shadow 260ms ease,
+    transform 220ms ease,
+    opacity 220ms ease;
+}
+
+button:active,
+a:active,
+[role='button']:active {
+  transform: translateY(0.5px) scale(0.985);
+}
+
+.admin-loader-star-core {
+  position: relative;
+  z-index: 2;
+  color: #5d4a99;
+  font-size: 34px;
+  line-height: 1;
+  text-shadow: 0 0 20px rgba(122, 77, 255, 0.45);
+  animation: admin-pulse-star 1.2s ease-in-out infinite;
+}
+
+.admin-loader-orbit {
+  position: absolute;
+  inset: 8px;
+  border-radius: 999px;
+  animation: admin-spin-orbit 1.25s linear infinite;
+}
+
+.admin-loader-earth {
+  position: absolute;
+  top: 2px;
+  left: 50%;
+  width: 12px;
+  height: 12px;
+  margin-left: -6px;
+  border-radius: 999px;
+  background: radial-gradient(circle at 30% 30%, #a5b4fc, #4f46e5 62%);
+  box-shadow: 0 0 16px rgba(79, 70, 229, 0.6);
+}
+
+@keyframes admin-spin-orbit {
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+@keyframes admin-pulse-star {
+  0%, 100% {
+    transform: scale(1);
+    opacity: 0.9;
+  }
+  50% {
+    transform: scale(1.08);
+    opacity: 1;
+  }
+}
