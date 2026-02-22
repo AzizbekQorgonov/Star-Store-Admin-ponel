@@ -4,7 +4,7 @@ import { useStore } from '../context/StoreContext';
 
 const LoginView: React.FC = () => {
   const { login, addNotification } = useStore();
-  const [email, setEmail] = useState('');
+  const [loginValue, setLoginValue] = useState('');
   const [password, setPassword] = useState('');
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
@@ -13,15 +13,15 @@ const LoginView: React.FC = () => {
     e.preventDefault();
     if (loading) return;
 
-    const normalizedEmail = String(email || '').trim().toLowerCase();
-    if (!normalizedEmail || !password) {
-      setError("Email va parolni to'ldiring.");
+    const normalizedLogin = String(loginValue || '').trim().toLowerCase();
+    if (!normalizedLogin || !password) {
+      setError("Login va parolni to'ldiring.");
       return;
     }
 
     setError('');
     setLoading(true);
-    const result = await login(normalizedEmail, password);
+    const result = await login(normalizedLogin, password);
     setLoading(false);
 
     if (!result.success) {
@@ -60,16 +60,16 @@ const LoginView: React.FC = () => {
 
           <form onSubmit={handleLogin} className="space-y-5">
             <div>
-              <label className="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-1.5">Email</label>
+              <label className="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-1.5">Login</label>
               <div className="relative">
                 <Mail className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" size={18} />
                 <input
-                  type="email"
-                  value={email}
-                  onChange={(e) => setEmail(e.target.value)}
+                  type="text"
+                  value={loginValue}
+                  onChange={(e) => setLoginValue(e.target.value)}
                   className="w-full pl-10 pr-4 py-3 bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl focus:outline-none focus:ring-2 focus:ring-indigo-500 dark:text-white"
-                  placeholder="admin@starstore.uz"
-                  autoComplete="email"
+                  placeholder="admin"
+                  autoComplete="username"
                 />
               </div>
             </div>

@@ -18,7 +18,7 @@ const INITIAL_DEFECTIVE: DefectiveItem[] = [];
 interface StoreContextType {
   user: User | null;
   isLoading: boolean;
-  login: (email: string, password: string) => Promise<{ success: boolean; error?: string; user?: User }>;
+  login: (identifier: string, password: string) => Promise<{ success: boolean; error?: string; user?: User }>;
   logout: () => void;
   updateUser: (data: Partial<User>) => void;
   
@@ -258,16 +258,14 @@ export const StoreProvider: React.FC<{ children: ReactNode }> = ({ children }) =
   const toggleDarkMode = () => setDarkMode(!darkMode);
 
   // Auth logic
-  const login = async (email: string, password: string) => {
+  const login = async (identifier: string, password: string) => {
     try {
-      const normalizedEmail = String(email || '').trim().toLowerCase();
+      const normalizedIdentifier = String(identifier || '').trim().toLowerCase();
+      const payload = { login: normalizedIdentifier, password: String(password || '') };
       const data = await apiRequest('/auth/login', {
         method: 'POST',
         auth: false,
-        body: JSON.stringify({
-          email: normalizedEmail,
-          password: String(password || ''),
-        }),
+        body: JSON.stringify(payload),
       });
 
       if (!data?.success || !data?.user || !data?.token) {
