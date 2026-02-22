@@ -2,6 +2,8 @@ import React, { useState, useEffect, useRef, useMemo } from 'react';
 import { Search, Eye, Truck, CheckCircle, XCircle, Clock, ChevronDown, LayoutList, Kanban, MoreHorizontal, X, MapPin, Mail, CreditCard, Printer, Package, User, Check, AlertTriangle } from 'lucide-react';
 import { useStore } from '../context/StoreContext';
 import { Order } from '../types';
+import BlurImage from './BlurImage';
+import { resolveImageUrl } from '../utils/image';
 
 const STATUS_OPTIONS = [
   { value: 'all', label: 'Barcha holatlar' },
@@ -378,9 +380,11 @@ const OrdersView: React.FC = () => {
                    {/* Left Column: Product Info */}
                    <div className="space-y-6">
                       <div className="aspect-video w-full rounded-xl overflow-hidden bg-slate-100 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 relative">
-                         <img 
-                            src={getPrimaryItem(selectedOrder)?.image || selectedOrder.previewImage || 'https://placehold.co/800x450?text=Order'} 
+                         <BlurImage
+                            src={resolveImageUrl(getPrimaryItem(selectedOrder)?.image || selectedOrder.previewImage || 'https://placehold.co/800x450?text=Order')} 
                             alt={selectedOrder.product} 
+                            loading="lazy"
+                            decoding="async"
                             className="w-full h-full object-cover"
                          />
                          <div className="absolute bottom-3 right-3 bg-black/60 text-white px-3 py-1 rounded-full text-xs font-medium backdrop-blur-md">

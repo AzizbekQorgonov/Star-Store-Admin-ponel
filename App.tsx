@@ -18,7 +18,9 @@ import CommandPalette from './components/CommandPalette';
 import ToastContainer from './components/ToastContainer';
 import ProfileModal from './components/ProfileModal'; 
 import GlobalLoading from './components/GlobalLoading';
+import BlurImage from './components/BlurImage';
 import { ViewType, Notification } from './types';
+import { resolveImageUrl } from './utils/image';
 
 // Main App Content wrapped in Auth logic
 const AppContent: React.FC = () => {
@@ -259,7 +261,7 @@ const AppContent: React.FC = () => {
                       <span className={`w-1.5 h-1.5 rounded-full ${user.role === 'admin' ? 'bg-indigo-500' : 'bg-emerald-500'}`}></span>
                     </p>
                   </div>
-                  <img src={user.avatar} alt="User" className="w-10 h-10 rounded-full border-2 border-white dark:border-slate-700 shadow-sm" />
+                  <BlurImage src={resolveImageUrl(user.avatar)} alt="User" loading="lazy" decoding="async" className="w-10 h-10 rounded-full border-2 border-white dark:border-slate-700 shadow-sm" />
                </div>
            </div>
         </div>

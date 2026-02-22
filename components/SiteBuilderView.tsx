@@ -2,6 +2,8 @@ import React, { useMemo, useState } from 'react';
 import { Plus, GripVertical, Trash2, Eye, EyeOff, ArrowUp, ArrowDown, Save, Link as LinkIcon } from 'lucide-react';
 import { useStore } from '../context/StoreContext';
 import { SiteSection } from '../types';
+import { imageLimitLabel, validateImageFile } from '../utils/image';
+import { uploadImageToCloudinary } from '../services/upload';
 
 const SECTION_TYPES = [
   { id: 'hero', label: 'Hero' },
@@ -406,17 +408,18 @@ const SiteBuilderView: React.FC = () => {
   };
 
   const uploadImage = async (file: File) => {
+    const imageError = validateImageFile(file);
+    if (imageError) {
+      addNotification('error', imageError);
+      return '';
+    }
+
     setIsUploading(true);
     try {
-      return await new Promise<string>((resolve, reject) => {
-        const reader = new FileReader();
-        reader.onload = () => {
-          if (typeof reader.result === 'string') resolve(reader.result);
-          else reject(new Error('Image read failed'));
-        };
-        reader.onerror = () => reject(new Error('Image read failed'));
-        reader.readAsDataURL(file);
-      });
+      return await uploadImageToCloudinary(file, 'site');
+    } catch (error) {
+      addNotification('error', (error as Error).message || 'Image upload failed');
+      return '';
     } finally {
       setIsUploading(false);
     }
@@ -715,7 +718,7 @@ const SiteBuilderView: React.FC = () => {
                       onChange={(e) => setSlideField('bgImage', e.target.value)}
                       className="w-full px-3 py-2 rounded-lg border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 text-sm"
                     />
-                    <label className="text-xs text-slate-400">BG Image file</label>
+                    <label className="text-xs text-slate-400">{`BG Image file (max ${imageLimitLabel})`}</label>
                     <input
                       type="file"
                       accept="image/*"
@@ -734,7 +737,7 @@ const SiteBuilderView: React.FC = () => {
                       onChange={(e) => setSlideField('image', e.target.value)}
                       className="w-full px-3 py-2 rounded-lg border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 text-sm"
                     />
-                    <label className="text-xs text-slate-400">Image file</label>
+                    <label className="text-xs text-slate-400">{`Image file (max ${imageLimitLabel})`}</label>
                     <input
                       type="file"
                       accept="image/*"
@@ -776,7 +779,7 @@ const SiteBuilderView: React.FC = () => {
                       onChange={(e) => setSlideField('image', e.target.value)}
                       className="w-full px-3 py-2 rounded-lg border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 text-sm"
                     />
-                    <label className="text-xs text-slate-400">Image file</label>
+                    <label className="text-xs text-slate-400">{`Image file (max ${imageLimitLabel})`}</label>
                     <input
                       type="file"
                       accept="image/*"
@@ -935,7 +938,7 @@ const SiteBuilderView: React.FC = () => {
                       onChange={(e) => setDraft(prev => ({ ...(prev || {}), image: e.target.value }))}
                       className="w-full px-3 py-2 rounded-lg border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 text-sm"
                     />
-                    <label className="text-xs text-slate-400">Image file</label>
+                    <label className="text-xs text-slate-400">{`Image file (max ${imageLimitLabel})`}</label>
                     <input
                       type="file"
                       accept="image/*"

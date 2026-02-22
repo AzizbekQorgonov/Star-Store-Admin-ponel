@@ -3,6 +3,9 @@ import { Plus, Search, Filter, Edit, Trash2, X, ChevronDown, Check, Square, Chec
 import { Product, DefectiveItem } from '../types';
 import { useStore } from '../context/StoreContext';
 import ConfirmationModal from './ConfirmationModal';
+import BlurImage from './BlurImage';
+import { imageLimitLabel, resolveImageUrl, validateImageFile } from '../utils/image';
+import { uploadImageToCloudinary } from '../services/upload';
 
 const PREDEFINED_COLORS = [
   { name: 'Oq', hex: '#FFFFFF', border: 'border-slate-200' },
@@ -73,6 +76,7 @@ const ProductsView: React.FC = () => {
 
   // AI Generation State
   const [isGenerating, setIsGenerating] = useState(false);
+  const [isUploadingImage, setIsUploadingImage] = useState(false);
 
   // Close dropdown when clicking outside
   useEffect(() => {
@@ -213,37 +217,40 @@ const ProductsView: React.FC = () => {
   };
 
   // Image Upload Logic
-  const handleFileUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
+  const handleFileUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
+    e.target.value = '';
     if (file) {
-      if (file.size > 2 * 1024 * 1024) { // 2MB limit
-        addNotification('error', "Rasm hajmi 2MB dan oshmasligi kerak");
+      const imageError = validateImageFile(file);
+      if (imageError) {
+        addNotification('error', imageError);
         return;
       }
-      
-      const reader = new FileReader();
-      reader.onloadend = () => {
-        const result = reader.result as string;
-        
+
+      setIsUploadingImage(true);
+      try {
+        const result = await uploadImageToCloudinary(file, 'products');
+
         // If a specific color context is active, save image for THAT color
         if (activeColorContext) {
-            setFormData(prev => ({
-                ...prev,
-                colorImages: {
-                    ...(prev.colorImages || {}),
-                    [activeColorContext]: result
-                }
-            }));
-            // Also update main image if it's the first one or user wants to see it
-            if (!formData.image) setFormData(prev => ({ ...prev, image: result }));
-            addNotification('success', `${activeColorContext} rangi uchun rasm yuklandi`);
+          setFormData(prev => ({
+            ...prev,
+            colorImages: {
+              ...(prev.colorImages || {}),
+              [activeColorContext]: result
+            }
+          }));
+          setFormData(prev => (prev.image ? prev : { ...prev, image: result }));
+          addNotification('success', `${activeColorContext} rangi uchun rasm yuklandi`);
         } else {
-            // Default global image
-            setFormData(prev => ({ ...prev, image: result }));
-            addNotification('success', "Asosiy rasm yuklandi");
+          setFormData(prev => ({ ...prev, image: result }));
+          addNotification('success', "Asosiy rasm yuklandi");
         }
-      };
-      reader.readAsDataURL(file);
+      } catch (error) {
+        addNotification('error', (error as Error).message || "Rasm yuklanmadi");
+      } finally {
+        setIsUploadingImage(false);
+      }
     }
   };
 
@@ -353,117 +360,57 @@ const ProductsView: React.FC = () => {
       return;
     }
 
-    // @ts-ignore
-    const apiKey = process.env.API_KEY;
-    if (!apiKey) {
-      addNotification('error', 'API kaliti topilmadi');
-      return;
-    }
-
     setIsGenerating(true);
     try {
-      // @ts-ignore
-      const { GoogleGenAI } = await import("@google/genai");
+      const name = String(formData.name || '').trim();
+      const lower = name.toLowerCase();
 
-      const ai = new GoogleGenAI({ apiKey: apiKey });
-      const prompt = `
-        Product Name: "${formData.name}".
-        
-        Task:
-        1. Identify the Brand (or 'Generic').
-        2. Identify the best Category from: ${JSON.stringify(CATEGORY_OPTIONS)}.
-        3. Write a short Uzbek marketing description (max 2 sentences).
-        4. Suggest estimated price in USD.
-        5. Identify available colors for this product (use Uzbek names if possible, e.g. Qora, Oq, Tilla rang). 
-        6. **IMPORTANT**: For each color, provide:
-           - "name": The color name.
-           - "hex": The approximate HEX color code (e.g., #FF0000).
-           - "imageUrl": Use 'googleSearch' tool to find a REAL, direct image URL (jpg/png/webp) for this specific product in that color.
+      const categoryGuess =
+        CATEGORY_OPTIONS.find((category) => lower.includes(category.toLowerCase())) ||
+        (lower.includes('phone') || lower.includes('iphone') || lower.includes('laptop') ? 'Elektronika' :
+        lower.includes('shirt') || lower.includes('hoodie') || lower.includes('dress') ? "Kiyim-kechak" :
+        lower.includes('shoe') || lower.includes('kross') ? 'Poyabzal' :
+        lower.includes('book') ? 'Kitoblar' : 'Aksessuarlar');
 
-        Return strictly JSON format:
-        {
-          "brand": string,
-          "category": string,
-          "description": string,
-          "price_estimate": number,
-          "colors": [
-             { "name": "Color Name", "hex": "#RRGGBB", "imageUrl": "https://..." }
-          ]
-        }
-      `;
+      const baseBrand = name.split(' ')[0] || 'Generic';
+      const brandGuess = baseBrand.length <= 2 ? 'Generic' : baseBrand;
+      const priceEstimate =
+        lower.includes('iphone') || lower.includes('laptop') ? 799 :
+        lower.includes('watch') ? 249 :
+        lower.includes('shoe') ? 120 : 49;
 
-      // Use a model that supports search grounding
-      const response = await ai.models.generateContent({
-        model: 'gemini-3-flash-preview',
-        contents: prompt,
-        config: {
-          tools: [{ googleSearch: {} }],
-        }
-      });
+      const suggested = PREDEFINED_COLORS.slice(0, 4);
+      const colorNames = suggested.map((c) => c.name);
+      const newColorImages: Record<string, string> = {};
+      const newColorHexes: Record<string, string> = {};
 
-      if (response.text) {
-        // Clean up markdown if present
-        let cleanText = response.text.trim();
-        if (cleanText.startsWith('```json')) {
-            cleanText = cleanText.replace(/^```json\s*/, '').replace(/\s*```$/, '');
-        } else if (cleanText.startsWith('```')) {
-            cleanText = cleanText.replace(/^```\s*/, '').replace(/\s*```$/, '');
-        }
-
-        const result = JSON.parse(cleanText);
-        
-        const generatedColorsData = result.colors || [];
-        const colorNames: string[] = [];
-        const newColorImages: Record<string, string> = {};
-        const newColorHexes: Record<string, string> = {};
-
-        generatedColorsData.forEach((item: any) => {
-            const colorName = item.name;
-            const imageUrl = item.imageUrl;
-            const hex = item.hex;
-            
-            colorNames.push(colorName);
-            
-            if (hex) {
-               newColorHexes[colorName] = hex;
-            }
-
-            if (imageUrl && imageUrl.startsWith('http')) {
-               newColorImages[colorName] = imageUrl;
-            } else {
-               const match = PREDEFINED_COLORS.find(c => 
-                  colorName.toLowerCase().includes(c.name.toLowerCase()) || 
-                  c.name.toLowerCase().includes(colorName.toLowerCase())
-               );
-               const bgHex = hex ? hex.replace('#', '') : (match ? match.hex.replace('#', '') : 'e2e8f0'); 
-               const textHex = (match && ['Oq', 'Kumush', 'Sariq', 'Bej'].includes(match.name)) ? '000000' : 'ffffff'; 
-               const encodedText = encodeURIComponent(`${formData.name}\n(${colorName})`);
-               newColorImages[colorName] = `https://placehold.co/600x600/${bgHex}/${textHex}?text=${encodedText}`;
-            }
-        });
-
-        setSelectedColors(prev => {
-             const combined = new Set([...prev, ...colorNames]);
-             return Array.from(combined);
-        });
-
-        setFormData(prev => ({
-          ...prev,
-          brand: result.brand || prev.brand,
-          category: result.category || prev.category,
-          description: result.description || prev.description,
-          price: prev.price || result.price_estimate || 0,
-          colorImages: { ...(prev.colorImages || {}), ...newColorImages },
-          colorHexes: { ...(prev.colorHexes || {}), ...newColorHexes },
-          image: prev.image || (colorNames.length > 0 ? newColorImages[colorNames[0]] : prev.image)
-        }));
-        
-        if (colorNames.length > 0) {
-            setActiveColorContext(colorNames[0]);
-        }
-        
-        addNotification('success', 'Ma\'lumotlar va ranglar Google qidiruvi orqali topildi!');
+      for (const color of suggested) {
+        const bgHex = color.hex.replace('#', '');
+        const textHex = ['Oq', 'Kumush (Silver)', 'Sariq', 'Bej (Beige)'].includes(color.name) ? '000000' : 'ffffff';
+        const encodedText = encodeURIComponent(`${name}\n(${color.name})`);
+        newColorHexes[color.name] = color.hex;
+        newColorImages[color.name] = `https://placehold.co/600x600/${bgHex}/${textHex}?text=${encodedText}`;
       }
+
+      setSelectedColors((prev) => Array.from(new Set([...prev, ...colorNames])));
+      setFormData((prev) => ({
+        ...prev,
+        brand: prev.brand || brandGuess,
+        category: prev.category || categoryGuess,
+        description:
+          prev.description ||
+          `${name} uchun qisqa tavsif: zamonaviy dizayn, kundalik foydalanish uchun qulay va sifatli tanlov.`,
+        price: prev.price || priceEstimate,
+        colorImages: { ...(prev.colorImages || {}), ...newColorImages },
+        colorHexes: { ...(prev.colorHexes || {}), ...newColorHexes },
+        image: prev.image || newColorImages[colorNames[0]],
+      }));
+
+      if (colorNames.length > 0) {
+        setActiveColorContext(colorNames[0]);
+      }
+
+      addNotification('success', "Xavfsiz rejimda lokal tavsiyalar yaratildi.");
     } catch (error) {
       console.error("AI Error:", error);
       addNotification('error', 'AI xatolik yuz berdi. Qaytadan urinib ko\'ring.');
@@ -1131,11 +1078,12 @@ const ProductsView: React.FC = () => {
                   onChange={handleFileUpload} 
                   className="hidden" 
                   accept="image/*"
+                  disabled={isUploadingImage}
                 />
                 
                 <div className="flex gap-4">
                    <div 
-                      onClick={() => fileInputRef.current?.click()}
+                      onClick={() => !isUploadingImage && fileInputRef.current?.click()}
                       className={`
                         flex-1 border-2 border-dashed rounded-lg p-4 text-center transition-all cursor-pointer group flex flex-col items-center justify-center gap-2
                         ${activeColorContext 
@@ -1147,7 +1095,9 @@ const ProductsView: React.FC = () => {
                          <UploadCloud size={20} />
                       </div>
                       <span className={`text-xs ${activeColorContext ? 'text-indigo-600 dark:text-indigo-300' : 'text-slate-400 dark:text-slate-500 group-hover:text-slate-600 dark:group-hover:text-slate-300'}`}>
-                        {activeColorContext ? `${activeColorContext} rang rasmini yuklash` : 'Kompyuterdan yuklash'} (max 2MB)
+                        {isUploadingImage
+                          ? 'Yuklanmoqda...'
+                          : `${activeColorContext ? `${activeColorContext} rang rasmini yuklash` : 'Kompyuterdan yuklash'} (max ${imageLimitLabel})`}
                       </span>
                    </div>
 
@@ -1155,7 +1105,7 @@ const ProductsView: React.FC = () => {
                    {(currentPreviewImage || formData.image) && (
                      <div className="w-28 h-28 shrink-0 rounded-lg border border-slate-200 dark:border-slate-700 p-1 bg-white dark:bg-slate-800 relative group overflow-hidden shadow-sm">
                         {isImageString(currentPreviewImage) ? (
-                           <img src={currentPreviewImage || formData.image} alt="Preview" className="w-full h-full object-cover rounded-md transition-transform group-hover:scale-105" />
+                            <BlurImage src={resolveImageUrl(currentPreviewImage || formData.image)} alt="Preview" loading="lazy" decoding="async" className="w-full h-full object-cover rounded-md transition-transform group-hover:scale-105" />
                         ) : (
                            <div className="w-full h-full flex items-center justify-center text-3xl bg-slate-50 dark:bg-slate-900 rounded-md">
                              {currentPreviewImage || formData.image}
@@ -1386,7 +1336,7 @@ const ProductsView: React.FC = () => {
                       <td className="p-4">
                         <div className="w-10 h-10 rounded-lg bg-slate-100 dark:bg-slate-800 flex items-center justify-center text-xl overflow-hidden border border-slate-200 dark:border-slate-700">
                           {isImageString(product.image) ? (
-                            <img src={product.image} alt={product.name} className="w-full h-full object-cover" />
+                            <BlurImage src={resolveImageUrl(product.image)} alt={product.name} loading="lazy" decoding="async" className="w-full h-full object-cover" />
                           ) : (
                             <span>{product.image}</span>
                           )}

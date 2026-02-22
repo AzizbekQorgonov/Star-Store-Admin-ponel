@@ -3,6 +3,8 @@ import { Search, Filter, Mail, Phone, Download, Plus, Trash2, Edit, X, Save, Use
 import { useStore } from '../context/StoreContext';
 import { Customer } from '../types';
 import ConfirmationModal from './ConfirmationModal';
+import BlurImage from './BlurImage';
+import { resolveImageUrl } from '../utils/image';
 
 // Enhanced Country Codes Data with Flags
 const COUNTRY_CODES = [
@@ -295,9 +297,11 @@ const CustomersView: React.FC = () => {
                     <div className="flex items-center gap-3">
                       <div className="w-10 h-10 rounded-full bg-indigo-100 dark:bg-indigo-900/50 flex items-center justify-center text-indigo-700 dark:text-indigo-300 font-bold border border-indigo-200 dark:border-indigo-800 overflow-hidden">
                         {customer.avatar ? (
-                          <img
-                            src={customer.avatar}
+                          <BlurImage
+                            src={resolveImageUrl(customer.avatar)}
                             alt={customer.name}
+                            loading="lazy"
+                            decoding="async"
                             className="w-full h-full object-cover"
                             onError={(e) => {
                               const img = e.currentTarget as HTMLImageElement;

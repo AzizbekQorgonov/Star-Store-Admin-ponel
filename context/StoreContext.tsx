@@ -18,7 +18,7 @@ const INITIAL_DEFECTIVE: DefectiveItem[] = [];
 interface StoreContextType {
   user: User | null;
   isLoading: boolean;
-  login: (username: string) => void;
+  login: (email: string, password: string) => Promise<{ success: boolean; error?: string; user?: User }>;
   logout: () => void;
   updateUser: (data: Partial<User>) => void;
   
@@ -88,9 +88,29 @@ const resolveApiBaseUrl = () => {
 
 const API_BASE_URL = resolveApiBaseUrl();
 const LIVE_REFRESH_MS = 15000;
+const ADMIN_AUTH_TOKEN_KEY = 'admin_auth_token';
 
-const apiRequest = async (path: string, options?: RequestInit) => {
-  const response = await fetch(`${API_BASE_URL}${path}`, options);
+type ApiRequestOptions = RequestInit & {
+  auth?: boolean;
+};
+
+const apiRequest = async (path: string, options: ApiRequestOptions = {}) => {
+  const { auth = true, headers, body, ...rest } = options;
+  const finalHeaders = new Headers(headers || {});
+  if (body !== undefined && !(body instanceof FormData) && !finalHeaders.has('Content-Type')) {
+    finalHeaders.set('Content-Type', 'application/json');
+  }
+
+  if (auth && typeof window !== 'undefined') {
+    const token = localStorage.getItem(ADMIN_AUTH_TOKEN_KEY) || '';
+    if (token) finalHeaders.set('Authorization', `Bearer ${token}`);
+  }
+
+  const response = await fetch(`${API_BASE_URL}${path}`, {
+    ...rest,
+    body,
+    headers: finalHeaders,
+  });
   if (!response.ok) {
     let errorMessage = `${response.status} ${response.statusText}`;
     try {
@@ -105,6 +125,25 @@ const apiRequest = async (path: string, options?: RequestInit) => {
   if (response.status === 204) return null;
   const text = await response.text();
   return text ? JSON.parse(text) : null;
+};
+
+const mapBackendUserToAdminUser = (input: any): User => {
+  const role = String(input?.role || 'editor').toLowerCase() === 'admin' ? 'admin' : 'editor';
+  const name = String(input?.username || input?.email || 'Admin');
+  const email = String(input?.email || '');
+  const avatar = String(input?.avatar_url || '')
+    || `https://ui-avatars.com/api/?name=${encodeURIComponent(name)}&background=6366f1&color=ffffff`;
+
+  return {
+    name,
+    email,
+    role,
+    avatar,
+    permissions:
+      role === 'admin'
+        ? ['Barcha huquqlar', 'Foydalanuvchilarni boshqarish', 'Moliyaviy hisobotlar', 'Tizim sozlamalari']
+        : ["Mahsulotlarni ko'rish", "Buyurtmalarni tahrirlash", 'Mijozlar bilan ishlash'],
+  };
 };
 
 export const StoreProvider: React.FC<{ children: ReactNode }> = ({ children }) => {
@@ -126,6 +165,46 @@ export const StoreProvider: React.FC<{ children: ReactNode }> = ({ children }) =
   // Navigation State
   const [focusedOrderId, setFocusedOrderId] = useState<string | null>(null);
   const lastLoadWarningRef = useRef<string>('');
+
+  useEffect(() => {
+    let mounted = true;
+    const restoreSession = async () => {
+      if (typeof window === 'undefined') {
+        if (mounted) setIsLoading(false);
+        return;
+      }
+
+      const token = localStorage.getItem(ADMIN_AUTH_TOKEN_KEY) || '';
+      if (!token) {
+        if (mounted) setIsLoading(false);
+        return;
+      }
+
+      try {
+        const data = await apiRequest('/me', { method: 'GET' });
+        if (!data?.success || !data?.user) {
+          throw new Error('Session is invalid');
+        }
+        const mapped = mapBackendUserToAdminUser(data.user);
+        if (mapped.role !== 'admin') {
+          throw new Error('Admin ruxsati yoq');
+        }
+        if (mounted) {
+          setUser(mapped);
+        }
+      } catch {
+        localStorage.removeItem(ADMIN_AUTH_TOKEN_KEY);
+        if (mounted) setUser(null);
+      } finally {
+        if (mounted) setIsLoading(false);
+      }
+    };
+
+    restoreSession();
+    return () => {
+      mounted = false;
+    };
+  }, []);
 
   // Currency State
   const [currency, setCurrency] = useState(() => {
@@ -179,23 +258,49 @@ export const StoreProvider: React.FC<{ children: ReactNode }> = ({ children }) =
   const toggleDarkMode = () => setDarkMode(!darkMode);
 
   // Auth logic
-  const login = (username: string) => {
-    const role = username.toLowerCase().includes('admin') ? 'admin' : 'editor';
-    
-    setUser({
-      name: username,
-      email: `${username.toLowerCase().replace(/\s/g, '')}@starstore.uz`,
-      role: role,
-      avatar: 'https://ui-avatars.com/api/?name=' + username + '&background=random',
-      permissions: role === 'admin' 
-        ? ['Barcha huquqlar', 'Foydalanuvchilarni boshqarish', 'Moliyaviy hisobotlar', 'Tizim sozlamalari']
-        : ['Mahsulotlarni ko\'rish', 'Buyurtmalarni tahrirlash', 'Mijozlar bilan ishlash']
-    });
-    addNotification('success', `Xush kelibsiz, ${username}! (${role === 'admin' ? 'Administrator' : 'Moderator'})`);
+  const login = async (email: string, password: string) => {
+    try {
+      const normalizedEmail = String(email || '').trim().toLowerCase();
+      const data = await apiRequest('/auth/login', {
+        method: 'POST',
+        auth: false,
+        body: JSON.stringify({
+          email: normalizedEmail,
+          password: String(password || ''),
+        }),
+      });
+
+      if (!data?.success || !data?.user || !data?.token) {
+        return { success: false, error: 'Login failed' };
+      }
+
+      const mappedUser = mapBackendUserToAdminUser(data.user);
+      if (mappedUser.role !== 'admin') {
+        return { success: false, error: 'Admin ruxsati yoq. ADMIN_EMAILS ni tekshiring.' };
+      }
+
+      if (typeof window !== 'undefined') {
+        localStorage.setItem(ADMIN_AUTH_TOKEN_KEY, String(data.token));
+      }
+      setUser(mappedUser);
+      return { success: true, user: mappedUser };
+    } catch (error) {
+      return { success: false, error: (error as Error).message || 'Login failed' };
+    }
   };
 
   const logout = () => {
+    if (typeof window !== 'undefined') {
+      localStorage.removeItem(ADMIN_AUTH_TOKEN_KEY);
+    }
     setUser(null);
+    setProducts([]);
+    setDefectiveItems([]);
+    setOrders([]);
+    setCustomers([]);
+    setCategories([]);
+    setCoupons([]);
+    setSiteSections([]);
     addNotification('info', 'Tizimdan chiqildi.');
   };
 
@@ -497,12 +602,17 @@ export const StoreProvider: React.FC<{ children: ReactNode }> = ({ children }) =
   }, []);
 
   useEffect(() => {
+    if (!user) {
+      setIsLoading(false);
+      return;
+    }
+
     loadInitialData(false);
     const interval = setInterval(() => {
       loadInitialData(true);
     }, LIVE_REFRESH_MS);
     return () => clearInterval(interval);
-  }, [loadInitialData]);
+  }, [loadInitialData, user]);
 
   const upsertProduct = useCallback(async (product: Product) => {
     const translateText = async (text: string, target: 'en' | 'ru') => {

@@ -1,6 +1,8 @@
 import React, { useState, useRef, useEffect } from 'react';
 import { User, Bell, Lock, Globe, Moon, Sun, Smartphone, Mail, Shield, Save, ChevronDown, Check, Coins } from 'lucide-react';
 import { useStore } from '../context/StoreContext';
+import BlurImage from './BlurImage';
+import { resolveImageUrl } from '../utils/image';
 
 const SettingsView: React.FC = () => {
   const { user, darkMode, toggleDarkMode, addNotification, currency, setCurrency } = useStore();
@@ -101,7 +103,7 @@ const SettingsView: React.FC = () => {
               
               <div className="flex items-center gap-6 mb-6">
                  <div className="relative group cursor-pointer">
-                    <img src={user?.avatar} alt="Avatar" className="w-24 h-24 rounded-full border-4 border-slate-50 dark:border-slate-800 object-cover" />
+                    <BlurImage src={resolveImageUrl(user?.avatar)} alt="Avatar" loading="lazy" decoding="async" className="w-24 h-24 rounded-full border-4 border-slate-50 dark:border-slate-800 object-cover" />
                     <div className="absolute inset-0 bg-black/40 rounded-full flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity">
                        <span className="text-white text-xs font-medium">O'zgartirish</span>
                     </div>

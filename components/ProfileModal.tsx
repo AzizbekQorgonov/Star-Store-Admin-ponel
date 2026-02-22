@@ -2,6 +2,8 @@ import React, { useState } from 'react';
 import { X, Shield, Mail, CheckCircle2, LogOut, Star, Settings, User as UserIcon, Edit2, Save } from 'lucide-react';
 import { User } from '../types';
 import { useStore } from '../context/StoreContext';
+import BlurImage from './BlurImage';
+import { resolveImageUrl } from '../utils/image';
 
 interface ProfileModalProps {
   user: User;
@@ -51,9 +53,11 @@ const ProfileModal: React.FC<ProfileModalProps> = ({ user, onClose, onLogout, on
           {/* Centered Avatar - Positioned absolutely relative to header but overlapping content */}
           <div className="absolute -bottom-10 left-1/2 -translate-x-1/2 z-20">
             <div className="p-1.5 bg-white dark:bg-slate-900 rounded-full shadow-lg">
-               <img 
-                 src={user.avatar} 
+               <BlurImage
+                 src={resolveImageUrl(user.avatar)} 
                  alt={user.name} 
+                 loading="lazy"
+                 decoding="async"
                  className="w-24 h-24 rounded-full border-4 border-slate-100 dark:border-slate-800 shadow-inner object-cover" 
                />
                <div className="absolute bottom-2 right-2 w-5 h-5 bg-green-500 border-4 border-white dark:border-slate-900 rounded-full" title="Online"></div>

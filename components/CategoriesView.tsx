@@ -2,6 +2,8 @@ import React, { useState, useMemo } from 'react';
 import { Plus, MoreVertical, Layers, ArrowRight, ArrowLeft, Search, Box, X, Save } from 'lucide-react';
 import { useStore } from '../context/StoreContext';
 import { Category } from '../types';
+import BlurImage from './BlurImage';
+import { resolveImageUrl } from '../utils/image';
 
 const CategoriesView: React.FC = () => {
   const { categories, addCategory, products, formatPrice } = useStore();
@@ -185,7 +187,7 @@ const CategoriesView: React.FC = () => {
                {categoryProducts.map(product => (
                  <div key={product.id} className="p-4 flex items-center gap-4 hover:bg-slate-50 dark:hover:bg-slate-800/50 transition-colors">
                     <div className="w-12 h-12 rounded-lg bg-slate-100 dark:bg-slate-800 flex items-center justify-center text-xl border border-slate-200 dark:border-slate-700">
-                       {product.image.startsWith('http') ? <img src={product.image} className="w-full h-full object-cover rounded-lg"/> : product.image}
+                       {product.image.startsWith('http') ? <BlurImage src={resolveImageUrl(product.image)} loading="lazy" decoding="async" className="w-full h-full object-cover rounded-lg"/> : product.image}
                     </div>
                     <div className="flex-1">
                        <h4 className="font-bold text-slate-800 dark:text-white">{product.name}</h4>
